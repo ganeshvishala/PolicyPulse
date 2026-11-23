@@ -21,6 +21,7 @@ import datetime
 import glob
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
@@ -175,8 +176,19 @@ CONFIG = {
         "ping": [["icmp", 0, 0]], "icmp": [["icmp", 0, 0]],
         "icmp-all": [["icmp", 0, 0]],
     },
+    # RFC port-sheet reading. read_all_sheets: read every visible sheet
+    # that has a port table (sheets named like Sample/Instructions are
+    # skipped). templates: hand-made column maps for RFC formats the
+    # auto-detection cannot read, e.g.
+    #   {"name": "OldForm", "file_regex": "", "sheet": "Port",
+    #    "header_row": 5, "data_start": 6,
+    #    "columns": {"sr": "A", "src_ip": "C", "dst_ip": "G",
+    #                "port": "J", "ptype": "K", "src_owner": "D",
+    #                "dst_owner": "H"}}
     "rfc": {"number_digits": 9, "filename_regex": r"RFC[._\- ]*(\d{9})",
-            "use_description_when_name_has_none": True},
+            "use_description_when_name_has_none": True,
+            "read_all_sheets": True, "header_scan_rows": 60,
+            "templates": []},
     "compliance_framework": "all",
     "policy": {
         "merged_rule": "note",   # note: stays NO with a note | yes: YES
@@ -187,6 +199,7 @@ CONFIG = {
         "combined_row_grouping": "enabled",  # enabled | strict
     },
     # SMAX export column names (rows matched on the 9-digit RFC no.)
+    # Site-specific: change base_url / tenant_id for another organisation.
     "smax": {
         "base_url": "https://serviceportal.bankofbaroda.co.in",
         "tenant_id": "246334335",
@@ -209,7 +222,8 @@ CONFIG = {
                    "Expiration Date", "Expiry Date",
                    "Temp Access Expiration Date"],
     }},
-    "checks": {"rfc_date_plausibility_days": 120},
+    "checks": {"rfc_date_plausibility_days": 120,
+               "expiry_warning_days": 30},
     # Asset Owner comes from the RFC port sheets (Source Owner and
     # Dest. Server Owner columns). show: both | source | destination.
     # SMAX is used only when the RFC sheet gives no owner.
@@ -299,6 +313,25 @@ def load_config(path=None):
                 "risky_ports entries must be port numbers or \"ANY\""
                 " (found %r)" % (p,)
             )
+    for tpl in cfg["rfc"].get("templates") or []:
+        if not isinstance(tpl, dict):
+            raise AuditError("rfc.templates entries must be JSON objects")
+        _template_layout(tpl)
+        for k in ("file_regex", "sheet"):
+            if tpl.get(k):
+                try:
+                    re.compile(tpl[k])
+                except re.error as e:
+                    raise AuditError(
+                        "rfc.templates %r: %s is not a valid regex: %s"
+                        % (tpl.get("name", "?"), k, e)
+                    )
+    try:
+        _EXPIRY_WARN["days"] = int(
+            cfg["checks"].get("expiry_warning_days", 30)
+        )
+    except (TypeError, ValueError):
+        raise AuditError("checks.expiry_warning_days must be a number")
     try:
         re.compile(cfg["rfc"]["filename_regex"])
     except re.error as e:
@@ -828,6 +861,24 @@ class IPSet(object):
             '' if n == 1 else 's',
             self.fmt(limit),
         )
+
+
+_V6_CAND = re.compile(r'(?<![\w:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?:/\d{1,3})?)(?![\w:])')
+
+
+def ipv6_tokens(text):
+    """IPv6 addresses/networks found in text. IPv6 is not compared yet,
+    so callers report these as 'not checked' instead of dropping them."""
+    out = []
+    for m in _V6_CAND.finditer(clean(text)):
+        tok = m.group(1)
+        try:
+            ipaddress.ip_network(tok, strict=False)
+        except ValueError:
+            continue
+        if ":" in tok and tok not in out:
+            out.append(tok)
+    return out
 
 
 def parse_ip_text(text):
@@ -1546,130 +1597,212 @@ def _parse_date(v):
     return None
 
 
-def _find_layout(rows):
-    for ri in range(min(25, len(rows))):
-        txt = dict(
-            (i, _txt(v).lower())
-            for i, v in enumerate(rows[ri])
-            if v is not None and _txt(v)
-        )
-        src = [i for i, t in txt.items() if t == 'source']
-        dst = [i for i, t in txt.items() if t == 'destination']
-        if not (src and dst) or ri + 1 >= len(rows):
-            continue
-        sc, dc = src[0], dst[0]
-        sub = dict(
-            (i, _txt(v).lower())
-            for i, v in enumerate(rows[ri + 1])
-            if v is not None and _txt(v)
-        )
-        src_ip = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'ip address' in t and sc <= i < dc
-            ),
-            None,
-        )
-        dst_ip = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'ip address' in t and i >= dc
-            ),
-            None,
-        )
-        dport = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'port' in t and 'type' not in t and i >= dc
-            ),
-            None,
-        )
-        if src_ip is None or dst_ip is None or dport is None:
-            continue
-        src_own = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'owner' in t and sc <= i < dc
-            ),
-            None,
-        )
-        dst_own = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'owner' in t and i >= dc
-            ),
-            None,
-        )
-        src_app = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'application' in t and sc <= i < dc
-            ),
-            None,
-        )
-        dst_app = next(
-            (
-                i
-                for i, t in sorted(sub.items())
-                if 'application' in t and i >= dc
-            ),
-            None,
-        )
-        pt = ('port type', 'pot type', 'pot_type', 'port_type', 'protocol')
-        ptype = next(
-            (i for i, t in txt.items() if any(k in t for k in pt)), None
-        )
-        if ptype is None:
-            ptype = next(
-                (i for i, t in sub.items() if any(k in t for k in pt)), None
-            )
-        both = list(txt.items()) + list(sub.items())
-        direction = next(
-            (
-                i
-                for i, t in both
-                if t.startswith('direction')
-                or ('direction' in t and 'flow' in t)
-            ),
-            None,
-        )
-        just = next(
-            (
-                i
-                for i, t in txt.items()
-                if t.startswith('justification')
-            ),
-            None,
-        )
-        sr = next(
-            (
-                i
-                for i, t in txt.items()
-                if t.startswith(('sr', 's.no', 's no', 'serial'))
-            ),
-            None,
-        )
-        return dict(
-            group_row=ri,
-            src_ip=src_ip,
-            dst_ip=dst_ip,
-            dport=dport,
-            ptype=ptype,
-            direction=direction,
-            just=just,
-            sr=0 if sr is None else sr,
-            src_owner=src_own,
-            dst_owner=dst_own,
-            src_app=src_app,
-            dst_app=dst_app,
-        )
+_SRC_GROUP = ('source', 'src', 'source details', 'source server',
+              'source server details', 'source side', 'source system',
+              'source ip details', 'source details ip')
+_DST_GROUP = ('destination', 'dest', 'dst', 'destination details',
+              'destination server', 'destination server details',
+              'destination side', 'destination system', 'target',
+              'dest details', 'destination ip details')
+_PT_WORDS = ('port type', 'pot type', 'pot_type', 'port_type', 'protocol',
+             'proto', 'tcp udp', 'tcp/udp')
+
+
+def _hnorm(v):
+    """Header text, lower-case, punctuation folded to spaces."""
+    t = _txt(v).lower()
+    t = re.sub(r'[^a-z0-9/+&]+', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def _is_group(t, words):
+    return t in words
+
+
+def _ip_col(t):
+    if re.search(r'\b(owner|nat|nated|natted|name|zone|application|'
+                 r'hostname|host name|vip|translated)\b', t):
+        return 0
+    if 'ip address' in t or 'ip addr' in t:
+        return 3
+    if re.search(r'\bip\b', t) or 'ip/subnet' in t:
+        return 2
+    if 'subnet' in t or 'network address' in t:
+        return 1
+    return 0
+
+
+def _best(sub, lo, hi, score):
+    best, bi = 0, None
+    for i, t in sorted(sub.items()):
+        if lo <= i < hi:
+            s = score(t)
+            if s > best:
+                best, bi = s, i
+    return bi
+
+
+def _port_col(t):
+    if 'type' in t or 'source port' in t or 'src port' in t:
+        return 0
+    if 'destination port' in t or 'dest port' in t or 'dst port' in t:
+        return 3
+    if re.search(r'\bports?\b', t) or 'port no' in t:
+        return 2
+    if t in ('service', 'services', 'service port'):
+        return 1
+    return 0
+
+
+def _first(items, pred):
+    return next((i for i, t in sorted(items) if pred(t)), None)
+
+
+def _layout_dict(group_row, data_start, txt, sub, sc, dc, src_ip, dst_ip,
+                 dport, mode):
+    both = list(txt.items()) + list(sub.items())
+    ptype = _first(txt.items(), lambda t: any(k in t for k in _PT_WORDS))
+    if ptype is None:
+        ptype = _first(sub.items(), lambda t: any(k in t for k in _PT_WORDS))
+
+    def side(word, lo, hi):
+        return next((i for i, t in sorted(sub.items())
+                     if word in t and lo <= i < hi), None)
+
+    big = 10 ** 6
+    direction = _first(both, lambda t: t.startswith('direction')
+                       or ('direction' in t and 'flow' in t))
+    just = _first(both, lambda t: t.startswith('justification')
+                  or t.startswith('business justification'))
+    sr = _first(both, lambda t: t.startswith(('sr', 's no', 'serial', 'sl no',
+                                              'sno', 'line no', 'item no')))
+    return dict(
+        group_row=group_row,
+        data_start=data_start,
+        mode=mode,
+        src_ip=src_ip,
+        dst_ip=dst_ip,
+        dport=dport,
+        ptype=ptype,
+        direction=direction,
+        just=just,
+        sr=sr,
+        src_owner=side('owner', sc, dc),
+        dst_owner=side('owner', dc, big),
+        src_app=side('application', sc, dc),
+        dst_app=side('application', dc, big),
+    )
+
+
+def _row_text(row):
+    return dict(
+        (i, _hnorm(v)) for i, v in enumerate(row) if v is not None and _hnorm(v)
+    )
+
+
+def _find_layout(rows, max_scan=60):
+    """Find the Source / Destination table.
+
+    Handles: merged group headers ("Source" spanning several columns),
+    header synonyms (Src, Source Details, Dest, Target ...), sub-headers
+    on 1 or 2 rows below the group row, and single-row headers such as
+    "Source IP | Destination IP | Port".  `rows` should have merged cells
+    filled in (XlsxBook.rows(..., expand_merges=True)).
+    """
+    n = min(max_scan, len(rows))
+    for ri in range(n):
+        txt = _row_text(rows[ri])
+        src = [i for i, t in txt.items() if _is_group(t, _SRC_GROUP)]
+        dst = [i for i, t in txt.items() if _is_group(t, _DST_GROUP)]
+        if src and dst and min(src) < min(dst):
+            sc, dc = min(src), min(dst)
+            for depth in (1, 2):
+                if ri + depth >= len(rows):
+                    break
+                sub = {}
+                for k in range(1, depth + 1):
+                    for i, t in _row_text(rows[ri + k]).items():
+                        if t in (_SRC_GROUP + _DST_GROUP):
+                            continue
+                        sub[i] = (sub[i] + ' ' + t) if i in sub else t
+                src_ip = _best(sub, sc, dc, _ip_col)
+                dst_ip = _best(sub, dc, 10 ** 6, _ip_col)
+                dport = _best(sub, dc, 10 ** 6, _port_col)
+                if dport is None:
+                    # port column sometimes sits under neither group
+                    dport = _best(dict((i, t) for i, t in txt.items()
+                                       if i >= dc), dc, 10 ** 6, _port_col)
+                if src_ip is not None and dst_ip is not None and dport is not None:
+                    return _layout_dict(ri, ri + depth + 1, txt, sub, sc, dc,
+                                        src_ip, dst_ip, dport,
+                                        "grouped-%d" % depth)
+        # single-row header: "Source IP" ... "Destination IP" ... "Port"
+        sip = _first(txt.items(), lambda t: (t.startswith(('source', 'src'))
+                                             and _ip_col(t) >= 2))
+        dip = _first(txt.items(), lambda t: (t.startswith(('destination', 'dest', 'dst', 'target'))
+                                             and _ip_col(t) >= 2))
+        if sip is not None and dip is not None and sip < dip:
+            dport = _best(txt, dip, 10 ** 6, _port_col)
+            if dport is None:
+                dport = _best(txt, 0, 10 ** 6, _port_col)
+            if dport is not None:
+                return _layout_dict(ri, ri + 1, txt, txt, sip, dip, sip, dip,
+                                    dport, "single-row")
     return None
+
+
+def _col_index(ref):
+    """'C' -> 2, 3 -> 2 (1-based numbers allowed), None -> None."""
+    if ref is None or ref == "":
+        return None
+    if isinstance(ref, int):
+        return ref - 1
+    s = str(ref).strip().upper()
+    if s.isdigit():
+        return int(s) - 1
+    n = 0
+    for ch in s:
+        if not ('A' <= ch <= 'Z'):
+            raise AuditError("Template column %r is not a column letter" % ref)
+        n = n * 26 + (ord(ch) - 64)
+    return n - 1
+
+
+def _template_layout(tpl):
+    cols = tpl.get("columns") or {}
+    for need in ("src_ip", "dst_ip", "port"):
+        if not cols.get(need):
+            raise AuditError(
+                "RFC template %r needs columns.%s" % (tpl.get("name", "?"), need)
+            )
+    hdr = int(tpl.get("header_row", 1))
+    lay = dict(
+        group_row=max(hdr - 1, 0),
+        data_start=int(tpl.get("data_start", hdr + 1)) - 1,
+        mode="template:%s" % tpl.get("name", "unnamed"),
+        src_ip=_col_index(cols["src_ip"]),
+        dst_ip=_col_index(cols["dst_ip"]),
+        dport=_col_index(cols["port"]),
+        ptype=_col_index(cols.get("ptype")),
+        direction=_col_index(cols.get("direction")),
+        just=_col_index(cols.get("justification")),
+        sr=_col_index(cols.get("sr")),
+        src_owner=_col_index(cols.get("src_owner")),
+        dst_owner=_col_index(cols.get("dst_owner")),
+        src_app=_col_index(cols.get("src_app")),
+        dst_app=_col_index(cols.get("dst_app")),
+    )
+    return lay
+
+
+def _templates_for(path, rfc_cfg):
+    out = []
+    for tpl in (rfc_cfg or {}).get("templates") or []:
+        fre = tpl.get("file_regex")
+        if fre and not re.search(fre, os.path.basename(path), re.I):
+            continue
+        out.append(tpl)
+    return out
 
 
 def _first_val(r, i):
@@ -1711,55 +1844,33 @@ def _meta(rows, sheet, group_row):
                     sheet.requested_for = _txt(val)
 
 
-def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})'):
-    number = number or find_rfc_number(path, regex)
-    if not number:
-        raise AuditError(
-            "No RFC number in the file name %s (expected something like"
-            " RFC_255862839.xlsx)" % os.path.basename(path)
-        )
-    bk = XlsxBook(path)
-    try:
-        sheet = RfcSheet(number, path)
-        layout = rows = wsname = None
-        for name in bk.visible_names():
-            rws = bk.rows(name)
-            lay = _find_layout(rws)
-            if lay:
-                wsname, layout = name, lay
-                exp_rws = bk.rows(name, expand_merges=True)
-                rows = rws[: lay['group_row'] + 2] + exp_rws[lay['group_row'] + 2 :]
-                break
-    finally:
-        bk.close()
-    if layout is None:
-        raise AuditError(
-            "%s: could not find the Source / Destination table (a row"
-            " with 'Source' and 'Destination', followed by 'Server IP"
-            " Address' and 'Destination Port' headers)."
-            % os.path.basename(path)
-        )
-    sheet.sheet = wsname
-    _meta(rows, sheet, layout['group_row'])
-    if layout['src_owner'] is None and layout['dst_owner'] is None:
-        sheet.warnings.append(
-            "No Source Owner / Dest. Server Owner column found, so"
-            " Asset Owner cannot be read from this sheet."
-        )
-
+def _sheet_lines(rows, layout, wsname, sheet):
     def cell(r, c):
         return r[c] if c is not None and c < len(r) else None
 
-    last_sr = None
-    for ri in range(layout['group_row'] + 2, len(rows)):
-        r = rows[ri]
+    def sr_of(r):
         sr_val = cell(r, layout['sr'])
-        sr_m = (
-            re.match(r'^\s*(\d+)(?:\+.*)?$', sr_val.strip())
-            if isinstance(sr_val, str)
-            else None
+        if isinstance(sr_val, bool):
+            return None
+        if isinstance(sr_val, (int, float)):
+            return int(float(sr_val))
+        if isinstance(sr_val, str):
+            m = re.match(r'^\s*(\d+)(?:\s*[.)+].*)?\s*$', sr_val.strip())
+            if m:
+                return int(m.group(1))
+        return None
+
+    start = layout['data_start']
+    auto = not any(sr_of(rows[ri]) is not None for ri in range(start, len(rows)))
+    if auto:
+        sheet.warnings.append(
+            "Sheet %r: no Sr. No. values found, rows numbered by position"
+            % wsname
         )
-        is_sr = isinstance(sr_val, (int, float)) or bool(sr_m)
+    lines, last_sr, auto_n = [], None, 0
+    for ri in range(start, len(rows)):
+        r = rows[ri]
+        sr_num = sr_of(r)
         src_text, dst_text = clean(cell(r, layout['src_ip'])), clean(
             cell(r, layout['dst_ip'])
         )
@@ -1768,21 +1879,27 @@ def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})'):
         ports, unk, assumed = parse_rfc_ports(
             port_text, cell(r, layout['ptype'])
         )
-        if not is_sr:
-            if last_sr is None or not (src or dst or ports):
+        has_data = bool(src or dst or ports)
+        if auto:
+            if not has_data:
                 continue
+            auto_n += 1
+            sr, cont = auto_n, False
+        elif sr_num is None:
+            if not has_data:
+                continue
+            if last_sr is None:
+                sheet.warnings.append(
+                    "Sheet %r row %d: has IP/port data before the first"
+                    " Sr. No.; read as Sr 0" % (wsname, ri + 1)
+                )
+                last_sr = 0
             sr, cont = last_sr, True
         else:
-            sr = int(float(sr_val)) if isinstance(sr_val, (int, float)) else int(sr_m.group(1))
-            cont = False
+            sr, cont = sr_num, False
             last_sr = sr
         ln = RfcLine()
-        ln.sr, ln.row, ln.sheet, ln.continuation = (
-            sr,
-            ri + 1,
-            wsname,
-            cont,
-        )
+        ln.sr, ln.row, ln.sheet, ln.continuation = sr, ri + 1, wsname, cont
         (
             ln.src,
             ln.dst,
@@ -1790,11 +1907,7 @@ def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})'):
             ln.unk_ports,
             ln.ports_assumed_proto,
         ) = (src, dst, ports, unk, assumed)
-        ln.src_text, ln.dst_text, ln.port_text = (
-            src_text,
-            dst_text,
-            port_text,
-        )
+        ln.src_text, ln.dst_text, ln.port_text = src_text, dst_text, port_text
         ln.direction = _txt(cell(r, layout['direction']))
         ln.justification = _txt(cell(r, layout['just']))
         ln.src_owners = split_owners(cell(r, layout['src_owner']))
@@ -1805,15 +1918,110 @@ def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})'):
             ("source", src_text, src),
             ("destination", dst_text, dst),
         ):
+            v6 = ipv6_tokens(text)
+            if v6:
+                sheet.warnings.append(
+                    "Sr %s: IPv6 %s address(es) not checked: %s"
+                    % (sr, side, ", ".join(v6[:5]))
+                )
             if not ips:
                 ln.unparsed_addr.append(
                     "%s: %r" % (side, _txt(text)[:60])
                 )
-        sheet.lines.append(ln)
+        lines.append(ln)
+    return lines
+
+
+_SKIP_SHEETS = r'(?i)(sample|example|instruction|guideline|read ?me|\bhelp\b|legend|drop ?down)'
+
+
+def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})', rfc_cfg=None):
+    rfc_cfg = rfc_cfg or {}
+    number = number or find_rfc_number(path, regex)
+    if not number:
+        raise AuditError(
+            "No RFC number in the file name %s (expected something like"
+            " RFC_255862839.xlsx)" % os.path.basename(path)
+        )
+    read_all = rfc_cfg.get("read_all_sheets", True)
+    skip_re = rfc_cfg.get("skip_sheet_regex", _SKIP_SHEETS)
+    max_scan = int(rfc_cfg.get("header_scan_rows", 60))
+    templates = _templates_for(path, rfc_cfg)
+    bk = XlsxBook(path)
+    found, skipped, seen_headers = [], [], []
+    try:
+        names = bk.visible_names()
+        for name in names:
+            raw = bk.rows(name)
+            exp = bk.rows(name, expand_merges=True)
+            lay = None
+            for tpl in templates:
+                sre = tpl.get("sheet")
+                if sre and not re.search(sre, name, re.I):
+                    continue
+                lay = _template_layout(tpl)
+                break
+            is_skip = False
+            if lay is None:
+                is_skip = bool(skip_re and re.search(skip_re, name))
+                lay = _find_layout(exp, max_scan)
+            if lay is None:
+                hdrs = [
+                    _txt(v) for r in exp[:max_scan] for v in r
+                    if isinstance(v, str) and _txt(v) and len(_txt(v)) < 40
+                ][:12]
+                if hdrs:
+                    seen_headers.append("%s: %s" % (name, " | ".join(hdrs)))
+                continue
+            rows = raw[: lay['data_start']] + exp[lay['data_start']:]
+            (skipped if is_skip else found).append((name, lay, rows))
+            if found and not read_all:
+                break
+    finally:
+        bk.close()
+    if not found and skipped:
+        found = skipped[:1]
+    sk_names = [f[0] for f in skipped if f not in found]
+    if not found:
+        raise AuditError(
+            "%s: could not find the Source / Destination table (a row"
+            " with 'Source' and 'Destination', followed by 'Server IP"
+            " Address' and 'Destination Port' headers, or one header row"
+            " with 'Source IP', 'Destination IP' and 'Port'). Add an"
+            " rfc.templates entry in the config to map the columns by"
+            " hand.%s"
+            % (
+                os.path.basename(path),
+                (" Header text seen: " + " || ".join(seen_headers[:2]))
+                if seen_headers else "",
+            )
+        )
+    sheet = RfcSheet(number, path)
+    sheet.sheet = found[0][0]
+    sheet.sheets = [f[0] for f in found]
+    sheet.layouts = [(f[0], f[1]['mode']) for f in found]
+    _meta(found[0][2], sheet, found[0][1]['group_row'])
+    if all(f[1]['src_owner'] is None and f[1]['dst_owner'] is None for f in found):
+        sheet.warnings.append(
+            "No Source Owner / Dest. Server Owner column found, so"
+            " Asset Owner cannot be read from this sheet."
+        )
+    for wsname, lay, rows in found:
+        sheet.lines.extend(_sheet_lines(rows, lay, wsname, sheet))
+    if sk_names:
+        sheet.warnings.append(
+            "Sheet(s) %s look like sample/instruction sheets and were not"
+            " read (rfc.skip_sheet_regex)" % ", ".join(repr(n) for n in sk_names)
+        )
+    if len(found) > 1:
+        sheet.warnings.append(
+            "Port table read from %d sheets: %s"
+            % (len(found), ", ".join(repr(f[0]) for f in found))
+        )
     if not sheet.lines:
         raise AuditError(
             "%s: the Source/Destination table was found but it has no"
-            " numbered rows." % os.path.basename(path)
+            " rows with IP or port data." % os.path.basename(path)
         )
     for ln in sheet.lines:
         if ln.unk_ports:
@@ -1832,11 +2040,12 @@ def read_rfc_sheet(path, number=None, regex=r'RFC[._\- ]*(\d{9})'):
                 % ln.sr
             )
     log.info(
-        "RFC%s: %s sheet=%r lines=%d",
+        "RFC%s: %s sheets=%r lines=%d layout=%s",
         number,
         sheet.filename,
-        wsname,
+        sheet.sheets,
         len(sheet.lines),
+        ",".join(m for _, m in sheet.layouts),
     )
     return sheet
 
@@ -1856,7 +2065,7 @@ def _is_rfc_excel_file(path, regex=r'RFC[._\- ]*(\d{9})'):
     return False
 
 
-def load_rfc_folder(folder, regex=r'RFC[._\- ]*(\d{9})'):
+def load_rfc_folder(folder, regex=r'RFC[._\- ]*(\d{9})', rfc_cfg=None):
     if not os.path.isdir(folder):
         raise AuditError("RFC folder not found: %s" % folder)
     sheets, problems = {}, []
@@ -1887,7 +2096,9 @@ def load_rfc_folder(folder, regex=r'RFC[._\- ]*(\d{9})'):
     for sh_path, fallback_num in candidates:
         n = os.path.basename(sh_path)
         try:
-            sh = read_rfc_sheet(sh_path, number=fallback_num, regex=regex)
+            sh = read_rfc_sheet(
+                sh_path, number=fallback_num, regex=regex, rfc_cfg=rfc_cfg
+            )
         except AuditError as e:
             problems.append((n, str(e)))
             log.warning("RFC file skipped: %s", e)
@@ -2180,6 +2391,13 @@ def build_rule(
         d.added,
     )
     r.src_unresolved, r.dst_unresolved = s.unresolved, d.unresolved
+    for side, cell in (("source", val("source")), ("destination", val("destination"))):
+        lst = r.src_unresolved if side == "source" else r.dst_unresolved
+        for tok in ipv6_tokens(" ".join(after_state(cell))):
+            label = "%s (IPv6 - not checked)" % tok
+            lst[:] = [x for x in lst if x != tok and x.rstrip(":") != tok]
+            if label not in lst:
+                lst.append(label)
     r.edited_markers["src"], r.edited_markers["dst"] = (
         s.marked,
         d.marked,
@@ -2609,19 +2827,21 @@ def risky(rule, cfg):
                 hits.append("ANY")
         elif rule.ports.contains(int(p)):
             hits.append(str(p))
-    if not rule.removed:
-        if rule.src.is_any():
-            hits.append("SRC:ANY")
-        elif rule.src.count() >= 65536:
-            hits.append("SRC:LARGE(/16+)")
-        if rule.dst.is_any():
-            hits.append("DST:ANY")
-        elif rule.dst.count() >= 65536:
-            hits.append("DST:LARGE(/16+)")
+    if rule.src.is_any():
+        hits.append("SRC:ANY")
+    elif rule.src.count() >= 65536:
+        hits.append("SRC:LARGE(/16+)")
+    if rule.dst.is_any():
+        hits.append("DST:ANY")
+    elif rule.dst.count() >= 65536:
+        hits.append("DST:LARGE(/16+)")
     return hits
 
 
-def expiry_status(exp_val, ref_date=None):
+_EXPIRY_WARN = {"days": 30}
+
+
+def expiry_status(exp_val, ref_date=None, warn_days=None):
     if not exp_val:
         return ""
     if str(exp_val).strip().lower() == "permanent":
@@ -2641,7 +2861,9 @@ def expiry_status(exp_val, ref_date=None):
     days = (d - ref).days
     if days < 0:
         return "EXPIRED"
-    if days <= 30:
+    if warn_days is None:
+        warn_days = _EXPIRY_WARN["days"]
+    if days <= warn_days:
         return "EXPIRING SOON (%dd)" % days
     return "ACTIVE"
 
@@ -5651,9 +5873,14 @@ def _check_rfc_dates(ctx):
 
 
 
-def build_smax_browser_script(rfc_numbers, base_url="https://serviceportal.bankofbaroda.co.in", tenant_id="246334335"):
-    base = (base_url or "https://serviceportal.bankofbaroda.co.in").rstrip("/")
-    tid = str(tenant_id or "246334335").strip()
+def build_smax_browser_script(rfc_numbers, base_url=None, tenant_id=None):
+    base = (base_url or CONFIG["smax"]["base_url"] or "").rstrip("/")
+    tid = str(tenant_id or CONFIG["smax"]["tenant_id"] or "").strip()
+    if not base or not tid:
+        raise AuditError(
+            "SMAX base_url and tenant_id must be set in the config"
+            " (smax.base_url / smax.tenant_id)."
+        )
     rfcs_json = json.dumps([str(x).strip() for x in rfc_numbers if str(x).strip()])
     return (
         "(async () => {\n"
@@ -5680,7 +5907,7 @@ def build_smax_browser_script(rfc_numbers, base_url="https://serviceportal.banko
         "      for (let k = 0; k < xls.length; k++) {\n"
         "        const p = xls[k].properties || xls[k];\n"
         "        const aid = p.id;\n"
-        "        const ext = (p.file_extension || 'xlsx').replace(/^\./, '');\n"
+        "        const ext = (p.file_extension || 'xlsx').replace(/^\\./, '');\n"
         "        const outName = xls.length === 1 ? `RFC${id}.${ext}` : `RFC${id}_${k+1}.${ext}`;\n"
         "        const fRes = await fetch(`${base}/rest/${tid}/frs/file-list/${aid}`, {credentials: 'include'});\n"
         "        const blob = await fRes.blob();\n"
@@ -5704,8 +5931,8 @@ def build_smax_browser_script(rfc_numbers, base_url="https://serviceportal.banko
 def smax_fetch_command(rfc_numbers, out_dir, cfg, user, script_path=None):
     sp = script_path or os.path.join(tool_dir(), "smax_fetch.py")
     s_cfg = (cfg or {}).get("smax", {})
-    base = s_cfg.get("base_url", "https://serviceportal.bankofbaroda.co.in")
-    tid = str(s_cfg.get("tenant_id", "246334335"))
+    base = s_cfg.get("base_url") or CONFIG["smax"]["base_url"]
+    tid = str(s_cfg.get("tenant_id") or CONFIG["smax"]["tenant_id"])
     rfcs = [str(x).strip() for x in rfc_numbers if str(x).strip()]
     return [
         sys.executable, sp,
@@ -6014,7 +6241,7 @@ def run_audit(
     if rfc_folder:
         step("Reading RFC port sheets")
         ctx.sheets, ctx.sheet_problems = load_rfc_folder(
-            rfc_folder, cfg["rfc"]["filename_regex"]
+            rfc_folder, cfg["rfc"]["filename_regex"], cfg["rfc"]
         )
         _check_rfc_dates(ctx)
     else:
@@ -6513,6 +6740,70 @@ def run_selftest():
         bk_el.save(os.path.join(extless_dir, "RFC255664422"))
         el_sheets, el_probs = load_rfc_folder(extless_dir)
         check("Extensionless RFC255664422 loads like .xlsx", "255664422" in el_sheets and len(el_sheets["255664422"].lines) == 1 and not el_probs)
+        # --- v2.6 RFC reader robustness ---
+        rr_dir = os.path.join(tmp, "rfc_robust")
+        os.makedirs(rr_dir, exist_ok=True)
+        # (a) merged group headers, synonyms, merged Sr over two data rows
+        bk_m = Book()
+        w = bk_m.sheet("Port Details")
+        w.put(1, 1, "S.No"); w.merge(1, 1, 2, 1)
+        w.put(1, 2, "Source Details"); w.merge(1, 2, 1, 5)
+        w.put(1, 6, "Destination Details"); w.merge(1, 6, 1, 10)
+        w.put(2, 2, "Server Name"); w.put(2, 3, "IP Address"); w.put(2, 4, "Owner")
+        w.put(2, 6, "Server Name"); w.put(2, 7, "IP Address"); w.put(2, 8, "Port No."); w.put(2, 9, "Protocol"); w.put(2, 10, "Owner")
+        w.put(3, 1, 1); w.merge(3, 1, 4, 1)
+        w.put(3, 3, "10.10.1.1"); w.put(3, 7, "10.20.1.1"); w.put(3, 8, "443"); w.put(3, 9, "TCP"); w.put(3, 4, "Asha")
+        w.put(4, 3, "10.10.1.2"); w.put(4, 7, "10.20.1.1"); w.put(4, 8, "443"); w.put(4, 9, "TCP")
+        w.put(5, 1, 2); w.put(5, 3, "10.10.1.3"); w.put(5, 7, "10.20.1.9"); w.put(5, 8, "1521"); w.put(5, 9, "TCP")
+        bk_m.save(os.path.join(rr_dir, "RFC300000001.xlsx"))
+        # (b) three-row header (Source > Server > IP Address)
+        bk_3 = Book()
+        w = bk_3.sheet("RFC")
+        w.put(1, 1, "Sr. No."); w.put(1, 2, "Source"); w.merge(1, 2, 1, 3); w.put(1, 4, "Destination"); w.merge(1, 4, 1, 6)
+        w.put(2, 2, "Server"); w.put(2, 4, "Server")
+        w.put(3, 2, "IP Address"); w.put(3, 4, "IP Address"); w.put(3, 5, "Destination Port"); w.put(3, 6, "Port Type")
+        w.put(4, 1, 1); w.put(4, 2, "10.30.0.0/24"); w.put(4, 4, "10.40.0.5"); w.put(4, 5, "22"); w.put(4, 6, "tcp")
+        bk_3.save(os.path.join(rr_dir, "RFC300000002.xlsx"))
+        # (c) single-row header, no Sr column, plus Instructions sheet and 2nd port sheet
+        bk_s = Book()
+        ins = bk_s.sheet("Instructions")
+        ins.put(1, 1, "Source IP"); ins.put(1, 2, "Destination IP"); ins.put(1, 3, "Port")
+        ins.put(2, 1, "0.0.0.0/0"); ins.put(2, 2, "0.0.0.0/0"); ins.put(2, 3, "1-65535")
+        w = bk_s.sheet("DC")
+        w.put(1, 1, "Source IP"); w.put(1, 2, "Destination IP"); w.put(1, 3, "Destination Port"); w.put(1, 4, "Protocol")
+        w.put(2, 1, "10.50.0.1"); w.put(2, 2, "10.60.0.1"); w.put(2, 3, "8443"); w.put(2, 4, "TCP")
+        w2 = bk_s.sheet("DR")
+        w2.put(1, 1, "Source IP"); w2.put(1, 2, "Destination IP"); w2.put(1, 3, "Destination Port"); w2.put(1, 4, "Protocol")
+        w2.put(2, 1, "10.51.0.1"); w2.put(2, 2, "10.61.0.1"); w2.put(2, 3, "8443"); w2.put(2, 4, "TCP")
+        bk_s.save(os.path.join(rr_dir, "RFC300000003.xlsx"))
+        # (d) unreadable layout mapped by a template; IPv6 in the RFC
+        bk_t = Book()
+        w = bk_t.sheet("Form")
+        w.put(5, 1, "#"); w.put(5, 2, "From"); w.put(5, 3, "To"); w.put(5, 4, "Svc")
+        w.put(6, 1, 1); w.put(6, 2, "10.70.0.1, 2001:db8::1"); w.put(6, 3, "10.80.0.1"); w.put(6, 4, "53/udp")
+        bk_t.save(os.path.join(rr_dir, "RFC300000004.xlsx"))
+        rcfg = {"templates": [{"name": "Form", "file_regex": "300000004", "sheet": "^Form$",
+                               "header_row": 5, "columns": {"sr": "A", "src_ip": "B", "dst_ip": "C", "port": "D"}}]}
+        no_tpl, no_tpl_probs = load_rfc_folder(rr_dir)
+        rr, rr_probs = load_rfc_folder(rr_dir, rfc_cfg=rcfg)
+        a = rr.get("300000001")
+        check("RFC merged headers + synonyms read",
+              a is not None and len(a.lines) == 3 and a.lines[1].sr == 1
+              and a.lines[0].src.overlaps(IPSet([(ip2i("10.10.1.1"), ip2i("10.10.1.1"))]))
+              and a.lines[2].sr == 2 and a.lines[2].ports.contains(1521, "tcp"))
+        check("RFC merged owner column read", a is not None and "Asha" in " ".join(a.lines[0].src_owners))
+        b = rr.get("300000002")
+        check("RFC three-row header read", b is not None and len(b.lines) == 1 and b.lines[0].ports.contains(22, "tcp"))
+        c = rr.get("300000003")
+        check("RFC single-row header, auto Sr, two sheets, sample sheet skipped",
+              c is not None and len(c.lines) == 2 and sorted(c.sheets) == ["DC", "DR"]
+              and not any(l.src.is_any() for l in c.lines))
+        d = rr.get("300000004")
+        check("RFC template maps unreadable layout", d is not None and len(d.lines) == 1 and d.lines[0].ports.contains(53, "udp"))
+        check("RFC without template reports the problem", "300000004" not in no_tpl and any("RFC300000004" in n for n, _ in no_tpl_probs))
+        check("RFC IPv6 flagged, not dropped", d is not None and any("IPv6" in x for x in d.warnings))
+        check("IPv6 tokens found", ipv6_tokens("10.1.1.1 2001:db8::/32 aa:bb:cc:dd:ee:ff") == ["2001:db8::/32"])
+        check("expiry warning days configurable", expiry_status("2026-11-30", datetime.date(2026, 11, 1), warn_days=60).startswith("EXPIRING") and expiry_status("2026-11-30", datetime.date(2026, 11, 1), warn_days=10) == "ACTIVE")
         if getattr(sys, "frozen", False):
             check("no network modules imported", True)
         else:
@@ -7051,8 +7342,8 @@ def run_gui():
         s_cfg = cur_cfg.get("smax", {})
         script = build_smax_browser_script(
             items,
-            s_cfg.get("base_url", "https://serviceportal.bankofbaroda.co.in"),
-            s_cfg.get("tenant_id", "246334335"),
+            s_cfg.get("base_url") or CONFIG["smax"]["base_url"],
+            s_cfg.get("tenant_id") or CONFIG["smax"]["tenant_id"],
         )
         root.clipboard_clear()
         root.clipboard_append(script)
