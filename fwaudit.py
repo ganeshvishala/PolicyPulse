@@ -34,7 +34,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape as _xesc
 
-VERSION = "2.5.1-single"
+VERSION = "2.6.0-single"
 
 DXC_LOGO_B64 = "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"
 DXC_LOGIN_LOGO_B64 = "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"
@@ -222,6 +222,12 @@ CONFIG = {
                    "Expiration Date", "Expiry Date",
                    "Temp Access Expiration Date"],
     }},
+    # Reviewer overrides (false positives). require_approval: an override
+    # proposed by one person is used only after a second person approves
+    # it (maker-checker). qa_sample_percent: share of NO rules the web UI
+    # picks at random for a human to re-check (measures accuracy).
+    "review": {"overrides_file": "fwaudit_overrides.json",
+               "require_approval": True, "qa_sample_percent": 5},
     "checks": {"rfc_date_plausibility_days": 120,
                "expiry_warning_days": 30},
     # Asset Owner comes from the RFC port sheets (Source Owner and
@@ -2803,6 +2809,10 @@ class Verdict(object):
         )
         self.unc = self.unc_total = 0
         self.risky_rule = self.shares_no_port = False
+        self.override = None
+        self.tool_status = None
+        self.fingerprint = ""
+        self.confidence = self.confidence_why = ""
 
 
 def fmt_lines(lines):
@@ -3359,6 +3369,417 @@ def find_unexpected(rules, verdicts):
 
 # === Asset Owner (from the RFC port sheets) ===
 OWNER_TITLES = ("mr", "mrs", "ms", "miss", "dr", "shri", "smt")
+
+
+# === reviewer overrides, confidence and explanation ===
+# A reviewer can correct a tool verdict (false positive / false
+# negative). Overrides live in a JSON file next to the tool and are
+# keyed by a fingerprint of the rule content, so:
+#   * the same rule in tomorrow's report is cleared automatically;
+#   * if the rule changes (IPs, ports, action ...) the override no
+#     longer applies and the rule is checked again.
+# The tool verdict is never hidden: reports show both the tool verdict
+# and the final (reviewed) verdict.
+OVERRIDES_FILE = "fwaudit_overrides.json"
+OVERRIDE_REASONS = (
+    "Approved in another RFC",
+    "RFC sheet not read correctly",
+    "Object / group resolved manually",
+    "Service name resolved manually",
+    "Port type (TCP/UDP) confirmed",
+    "Combined RFC lines approve it",
+    "HA / mirror rule",
+    "Accepted risk (exception)",
+    "Rule change verified with RFC owner",
+    "Tool verdict wrong - other",
+    "Confirmed issue (false negative)",
+)
+OVERRIDE_STATES = ("proposed", "approved", "rejected", "revoked")
+FINAL_STATUSES = ("YES", "NO", "REVIEW", "N/A")
+
+
+def _canon(obj):
+    if isinstance(obj, IPSet):
+        return [list(x) for x in obj.iv]
+    if isinstance(obj, PortSet):
+        return dict((k, [list(x) for x in v]) for k, v in sorted(obj.d.items()))
+    return obj
+
+
+def rule_fingerprint(rule):
+    """Stable hash of what the rule does (not of its row number)."""
+    body = [
+        rule.tab,
+        rule.name.strip().lower(),
+        rule.change_type.strip().lower(),
+        rule.action.strip().lower(),
+        _canon(rule.src),
+        _canon(rule.dst),
+        _canon(rule.ports),
+        bool(rule.any_service),
+        sorted(rule.src_unresolved),
+        sorted(rule.dst_unresolved),
+        sorted(rule.svc_unresolved),
+        list(rule.chain),
+    ]
+    raw = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def load_overrides(path):
+    if not path or not os.path.isfile(path):
+        return {"version": 1, "overrides": []}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            d = json.load(f)
+    except ValueError as e:
+        raise AuditError("Overrides file %s is not valid JSON: %s" % (path, e))
+    if isinstance(d, list):
+        d = {"version": 1, "overrides": d}
+    if not isinstance(d, dict) or not isinstance(d.get("overrides"), list):
+        raise AuditError("Overrides file %s has no 'overrides' list" % path)
+    return d
+
+
+def save_overrides(data, path):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+    return data
+
+
+def new_override(rule, final_status, reason, comment, by, state="proposed",
+                 expires=""):
+    if final_status not in FINAL_STATUSES:
+        raise AuditError("final status must be one of %s" % (FINAL_STATUSES,))
+    if not (reason or "").strip():
+        raise AuditError("An override needs a reason.")
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return {
+        "id": hashlib.sha256(
+            ("%s|%s|%s" % (rule_fingerprint(rule), now, os.urandom(8).hex())).encode()
+        ).hexdigest()[:12],
+        "tab": rule.tab,
+        "rule": rule.name,
+        "change_type": rule.change_type,
+        "fingerprint": rule_fingerprint(rule),
+        "final_status": final_status,
+        "reason": reason.strip(),
+        "comment": (comment or "").strip(),
+        "by": by or "",
+        "at": now,
+        "state": state,
+        "approved_by": by if state == "approved" else "",
+        "approved_at": now if state == "approved" else "",
+        "expires": (expires or "").strip(),
+    }
+
+
+def _ov_expired(ov, ref):
+    e = (ov.get("expires") or "").strip()
+    if not e:
+        return False
+    d = _parse_date(e)
+    return d is not None and d < ref
+
+
+def apply_overrides(ctx, data, require_approval=True):
+    """Set the final verdict from approved overrides. Keeps the tool
+    verdict in v.tool_status. Returns stats used by reports."""
+    stats = {"applied": [], "stale": [], "expired": [], "pending": [],
+             "unused": []}
+    by_fp = {}
+    by_name = {}
+    for ov in data.get("overrides", []):
+        st = ov.get("state", "proposed")
+        if st in ("rejected", "revoked"):
+            continue
+        by_fp.setdefault(ov.get("fingerprint"), []).append(ov)
+        by_name.setdefault((ov.get("tab"), (ov.get("rule") or "").strip().lower()), []).append(ov)
+    used = set()
+    for r in ctx.rules:
+        v = ctx.verdicts[r.uid]
+        v.tool_status = v.status
+        fp = rule_fingerprint(r)
+        v.fingerprint = fp
+        cands = sorted(by_fp.get(fp, []), key=lambda o: o.get("at", ""), reverse=True)
+        chosen = None
+        for ov in cands:
+            if _ov_expired(ov, ctx.report_date):
+                stats["expired"].append((r, ov))
+                used.add(ov.get("id"))
+                continue
+            if ov.get("state") == "approved" or not require_approval:
+                chosen = ov
+                break
+            stats["pending"].append((r, ov))
+            used.add(ov.get("id"))
+        if chosen is not None:
+            used.add(chosen.get("id"))
+            v.override = chosen
+            v.status = chosen["final_status"]
+            stats["applied"].append((r, chosen))
+            v.notes.append(
+                "Reviewer override: tool verdict %s -> %s (%s; by %s%s)."
+                % (v.tool_status, v.status, chosen.get("reason", ""),
+                   chosen.get("by", ""),
+                   (", approved by %s" % chosen["approved_by"])
+                   if chosen.get("approved_by") and chosen.get("approved_by") != chosen.get("by") else "")
+            )
+        elif not cands:
+            old = by_name.get((r.tab, r.name.strip().lower()), [])
+            old = [o for o in old if o.get("fingerprint") != fp
+                   and o.get("state") == "approved"]
+            if old:
+                stats["stale"].append((r, old[0]))
+                used.add(old[0].get("id"))
+                v.notes.append(
+                    "An earlier reviewer override (%s) no longer applies:"
+                    " the rule content changed, so it was checked again."
+                    % old[0].get("reason", "")
+                )
+    for ov in data.get("overrides", []):
+        if ov.get("id") not in used and ov.get("state") in ("approved", "proposed"):
+            stats["unused"].append(ov)
+    return stats
+
+
+def compute_confidence(rule, v, sheets):
+    """High / Medium / Low with the reasons, so a reader knows how far
+    to trust the verdict without opening the files."""
+    low, med = [], []
+    if v.status == "N/A" and not getattr(v, "override", None):
+        return "N/A", "Not compared (policy)."
+    if not rule.chain:
+        low.append("no RFC number in the rule name/description")
+    if v.rfc_missing:
+        low.append("RFC sheet missing: " + ", ".join("RFC" + n for n in v.rfc_missing))
+    if rule.src_unresolved or rule.dst_unresolved:
+        low.append("address object(s) without an IP")
+    if rule.svc_unresolved:
+        low.append("service name(s) not resolved")
+    if (v.tool_status or v.status) == "REVIEW":
+        low.append("tool could not fully verify")
+    if rule.svc_low:
+        med.append("port read from service name")
+    if rule.rfc_source == "description":
+        med.append("RFC number taken from description")
+    if len(rule.chain) > 1:
+        med.append("rule name has %d RFC numbers" % len(rule.chain))
+    if v.merged_note:
+        med.append("rule wider than any single RFC line")
+    used = set(n for n, _ in v.lines_used)
+    for n in used:
+        sh = sheets.get(n)
+        if sh is None:
+            continue
+        for ln in sh.lines:
+            if ln.ports_assumed_proto and ln.ports:
+                med.append("RFC%s Port Type blank, TCP assumed" % n)
+                break
+        if any("rows numbered by position" in w or "before the first" in w
+               for w in sh.warnings):
+            med.append("RFC%s rows had no Sr. No." % n)
+    if low:
+        return "Low", "; ".join(low + med)
+    if med:
+        return "Medium", "; ".join(med)
+    return "High", "All addresses, ports and RFC lines were read exactly."
+
+
+def explain_verdict(rule, v):
+    """Step-by-step checks behind a verdict: (step, result, detail)."""
+    out = []
+    ok, bad, na = "PASS", "FAIL", "INFO"
+    out.append(("RFC number in rule", ok if rule.chain else bad,
+                ", ".join("RFC" + n for n in rule.chain) or "none found"
+                + (" (from description)" if rule.rfc_source == "description" else "")))
+    if rule.chain:
+        out.append(("RFC port sheet available",
+                    ok if v.rfc_used and not v.rfc_missing else bad,
+                    ("used " + ", ".join("RFC" + n for n in v.rfc_used)) if v.rfc_used else
+                    ("missing " + ", ".join("RFC" + n for n in v.rfc_missing))))
+    if v.status == "N/A" and not getattr(v, "override", None):
+        out.append(("Comparison", na, v.detail))
+        return out
+    unres = list(rule.src_unresolved) + list(rule.dst_unresolved)
+    out.append(("Addresses readable", bad if unres else ok,
+                ("not read: " + ", ".join(unres[:6])) if unres else "all objects have IPs"))
+    out.append(("Services readable", bad if rule.svc_unresolved else ok,
+                ("not read: " + ", ".join(rule.svc_unresolved[:6])) if rule.svc_unresolved
+                else (rule.ports.fmt() or ("ANY" if rule.any_service else "-"))))
+    if v.rfc_used:
+        out.append(("Source inside RFC", bad if v.ex_src else ok,
+                    ("not approved: " + v.ex_src.fmt()) if v.ex_src else rule.src.summary(4)))
+        out.append(("Destination inside RFC", bad if v.ex_dst else ok,
+                    ("not approved: " + v.ex_dst.fmt()) if v.ex_dst else rule.dst.summary(4)))
+        out.append(("Ports inside RFC", bad if v.ex_ports else ok,
+                    ("not approved: " + v.ex_ports.fmt()) if v.ex_ports else rule.ports.fmt()))
+        if v.unc_total:
+            out.append(("Same RFC line approves src+dst+port", bad if v.unc else ok,
+                        v.merged_note or "every flow approved by one line"))
+        out.append(("RFC lines matched", na, fmt_lines(v.lines_used) or "-"))
+    if v.risky_ports:
+        out.append(("Risk check", na, "risky: " + ", ".join(v.risky_ports)))
+    tool = v.tool_status or v.status
+    out.append(("Tool verdict", na, "PIR ISSUE = %s" % tool))
+    ov = getattr(v, "override", None)
+    if ov:
+        out.append(("Reviewer override", na, "%s -> %s: %s%s" % (
+            tool, v.status, ov.get("reason", ""),
+            (" - " + ov["comment"]) if ov.get("comment") else "")))
+    return out
+
+
+def finalize_review(ctx, overrides_path=None, require_approval=True):
+    """Apply overrides then compute confidence for every rule."""
+    data = load_overrides(overrides_path) if overrides_path else {"overrides": []}
+    ctx.overrides_path = overrides_path or ""
+    ctx.override_stats = apply_overrides(ctx, data, require_approval)
+    for r in ctx.rules:
+        v = ctx.verdicts[r.uid]
+        if v.tool_status is None:
+            v.tool_status = v.status
+        v.confidence, v.confidence_why = compute_confidence(r, v, ctx.sheets)
+    return ctx.override_stats
+
+
+def _resolve_overrides(cfg, overrides_path=None):
+    if overrides_path is False or overrides_path == "":
+        return None
+    if overrides_path:
+        return overrides_path
+    f = (cfg.get("review") or {}).get("overrides_file") or ""
+    if not f:
+        return None
+    if not os.path.isabs(f):
+        f = os.path.join(tool_dir(), f)
+    return f if os.path.isfile(f) else None
+
+
+def results_to_dict(ctx, max_lines=200):
+    """Everything a reviewer needs, as plain JSON-able data (used by the
+    web UI and by `run --json`)."""
+    rules = []
+    used_sheets = ctx.sheets
+    for r in ctx.rules:
+        v = ctx.verdicts[r.uid]
+        own = ctx.owners.get(r.uid, ("", ""))
+        app = ctx.apps.get(r.uid, ("", ""))
+        ev = []
+        used_pairs = set((n, sr) for n, sr in v.lines_used)
+        for n in (v.rfc_used or []):
+            sh = used_sheets.get(n)
+            if not sh:
+                continue
+            for ln in sh.lines[:max_lines]:
+                ev.append({
+                    "rfc": n, "sr": ln.sr, "sheet": ln.sheet, "row": ln.row,
+                    "src": ln.src_text, "dst": ln.dst_text, "port": ln.port_text,
+                    "ports": ln.ports.fmt(),
+                    "direction": ln.direction, "justification": ln.justification,
+                    "src_hit": bool(r.src and ln.src.overlaps(r.src)),
+                    "dst_hit": bool(r.dst and ln.dst.overlaps(r.dst)),
+                    "port_hit": bool(r.ports and ln.ports.overlaps(r.ports)),
+                    "used": (n, ln.sr) in used_pairs,
+                    "file": sh.filename,
+                })
+        ov = getattr(v, "override", None)
+        rules.append({
+            "uid": r.uid, "tab": r.tab, "tab_row": r.tab_row,
+            "firewall": r.cons.report.device if r.cons else "",
+            "file": r.file, "file_row": r.file_row,
+            "change_type": r.change_type, "name": r.name,
+            "action": r.action, "enabled": r.enabled,
+            "description": r.description,
+            "rfcs": list(r.chain), "rfc_used": list(v.rfc_used),
+            "rfc_missing": list(v.rfc_missing),
+            "src": r.src.summary(8) if r.src else "",
+            "dst": r.dst.summary(8) if r.dst else "",
+            "services": ", ".join(r.svc_tokens), "ports": r.ports.fmt(),
+            "status": v.status, "tool_status": v.tool_status or v.status,
+            "detail": v.detail, "notes": list(v.notes),
+            "merged_note": v.merged_note,
+            "lines_used": fmt_lines(v.lines_used),
+            "risky": bool(v.risky_rule), "risky_ports": list(v.risky_ports),
+            "not_approved": {"src": v.ex_src.fmt() if v.ex_src else "",
+                             "dst": v.ex_dst.fmt() if v.ex_dst else "",
+                             "ports": v.ex_ports.fmt() if v.ex_ports else ""},
+            "confidence": getattr(v, "confidence", ""),
+            "confidence_why": getattr(v, "confidence_why", ""),
+            "fingerprint": getattr(v, "fingerprint", "") or rule_fingerprint(r),
+            "override": ov,
+            "asset_owner": own[0] if own else "",
+            "application": app[0] if app else "",
+            "explain": [list(x) for x in explain_verdict(r, v)],
+            "evidence": ev,
+        })
+    st = collections.Counter(x["status"] for x in rules)
+    tst = collections.Counter(x["tool_status"] for x in rules)
+    os_ = getattr(ctx, "override_stats", {}) or {}
+    return {
+        "tool_version": VERSION,
+        "run_time": ctx.run_time,
+        "report_date": ctx.report_date.strftime("%Y-%m-%d"),
+        "operator": ctx.operator,
+        "config_hash": ctx.config_hash,
+        "status": ctx.status,
+        "counts": dict(st), "tool_counts": dict(tst),
+        "confidence_counts": dict(collections.Counter(x["confidence"] for x in rules)),
+        "overrides": {k: len(os_.get(k, [])) for k in ("applied", "stale", "expired", "pending", "unused")},
+        "warnings": [list(w) for w in ctx.warnings],
+        "sheet_problems": [list(p) for p in ctx.sheet_problems],
+        "rfc_sheets": [
+            {"rfc": s.number, "file": s.filename,
+             "sheets": getattr(s, "sheets", [s.sheet]),
+             "layouts": [list(x) for x in getattr(s, "layouts", [])],
+             "lines": len(s.lines), "warnings": list(s.warnings)}
+            for s in sorted(ctx.sheets.values(), key=lambda x: x.number)
+        ],
+        "input_custody": ctx.input_custody,
+        "output_custody": ctx.output_custody,
+        "rules": rules,
+    }
+
+
+def _reviewer_sheet(ctx, ws):
+    title_block(
+        ws, "Reviewer Overrides — Tool Verdict vs Final Verdict",
+        ["Final verdicts in this workbook include approved reviewer"
+         " overrides. The tool verdict is kept for audit.",
+         "Overrides file: %s" % (getattr(ctx, "overrides_path", "") or "(none)")],
+    )
+    hdr = ["Tab", "Row in tab", "Rule name", "Change type", "Tool verdict",
+           "Final verdict", "State", "Reason", "Comment", "Proposed by",
+           "Proposed at", "Approved by", "Approved at", "Expires",
+           "Fingerprint"]
+    rows = []
+    st = getattr(ctx, "override_stats", {}) or {}
+    for kind, label in (("applied", "APPLIED"), ("pending", "PENDING APPROVAL"),
+                        ("stale", "NOT APPLIED - RULE CHANGED"),
+                        ("expired", "EXPIRED")):
+        for r, ov in st.get(kind, []):
+            v = ctx.verdicts[r.uid]
+            rows.append([
+                r.tab, r.tab_row, r.name, r.change_type,
+                v.tool_status or v.status,
+                v.status if kind == "applied" else ov.get("final_status", ""),
+                label, ov.get("reason", ""), ov.get("comment", ""),
+                ov.get("by", ""), ov.get("at", ""), ov.get("approved_by", ""),
+                ov.get("approved_at", ""), ov.get("expires", ""),
+                ov.get("fingerprint", ""),
+            ])
+    for ov in st.get("unused", []):
+        rows.append([ov.get("tab", ""), "", ov.get("rule", ""),
+                     ov.get("change_type", ""), "", ov.get("final_status", ""),
+                     "NOT IN THIS RUN", ov.get("reason", ""),
+                     ov.get("comment", ""), ov.get("by", ""), ov.get("at", ""),
+                     ov.get("approved_by", ""), ov.get("approved_at", ""),
+                     ov.get("expires", ""), ov.get("fingerprint", "")])
+    table(ws, 5, hdr, rows,
+          [12, 8, 30, 10, 10, 10, 22, 30, 40, 14, 18, 14, 18, 12, 26],
+          status_cols=(5, 6), center_cols=(2, 4))
 
 
 def owner_key(name):
@@ -4273,6 +4694,7 @@ def write_audit(ctx, path):
     _pir(ctx, bk.sheet("PIR Verification"))
     _unexpected(ctx, bk.sheet("Unexpected Changes"))
     _rfc_summary(ctx, bk.sheet("RFC Summary"))
+    _reviewer_sheet(ctx, bk.sheet("Reviewer Overrides"))
     _checks(ctx, bk.sheet("Checks"))
     _method(ctx, bk.sheet("Method"))
     _dashboard(ctx, dash)
@@ -4831,10 +5253,17 @@ def _impl_audit(ctx, ws):
         "Merged-rule note",
         "RFC lines matched",
         "Source file (AlgoSec)",
+        "Tool verdict (before review)",
+        "Confidence",
+        "Confidence notes",
+        "Override reason",
+        "Override comment",
+        "Reviewed / approved by",
     ]
     rows = []
     for r in ctx.rules:
         v = ctx.verdicts[r.uid]
+        ov = v.override or {}
         rows.append(
             [
                 r.tab,
@@ -4856,6 +5285,12 @@ def _impl_audit(ctx, ws):
                 v.merged_note,
                 fmt_lines(v.lines_used),
                 r.file,
+                v.tool_status or v.status,
+                v.confidence,
+                v.confidence_why,
+                ov.get("reason", ""),
+                ov.get("comment", ""),
+                " / ".join(x for x in (ov.get("by", ""), ov.get("approved_by", "")) if x),
             ]
         )
     table(
@@ -4882,8 +5317,14 @@ def _impl_audit(ctx, ws):
             44,
             28,
             70,
+            14,
+            12,
+            50,
+            30,
+            40,
+            24,
         ],
-        status_cols=(13, 14),
+        status_cols=(13, 14, 19),
         center_cols=(1, 2, 4, 5),
     )
 
@@ -6196,6 +6637,7 @@ def run_audit(
     smax_path=None,
     operator=None,
     record_job=True,
+    overrides_path=None,
 ):
     cfg = cfg or load_config()
 
@@ -6253,6 +6695,22 @@ def run_audit(
     ctx.verdicts = dict(
         (r.uid, evaluate_rule(r, ctx.sheets, cfg)) for r in ctx.rules
     )
+    ov_path = _resolve_overrides(cfg, overrides_path)
+    ost = finalize_review(
+        ctx, ov_path, (cfg.get("review") or {}).get("require_approval", True)
+    )
+    if ov_path:
+        step(
+            "Reviewer overrides: %d applied, %d pending approval, %d no"
+            " longer match (rule changed)"
+            % (len(ost["applied"]), len(ost["pending"]), len(ost["stale"]))
+        )
+        if ost["pending"]:
+            ctx.warn(
+                "%d reviewer override(s) are waiting for approval and were"
+                " not applied." % len(ost["pending"]),
+                "WARN",
+            )
     ctx.rfc_results = evaluate_rfcs(ctx.sheets, ctx.rules, ctx.verdicts)
     ctx.duplicates = find_duplicates(ctx.rules)
     ctx.unexpected = find_unexpected(ctx.rules, ctx.verdicts)
@@ -6331,6 +6789,8 @@ def run_audit(
                 ctx.input_custody.append(_file_custody(sp, "RFC"))
     if smax_path:
         ctx.input_custody.append(_file_custody(smax_path, "SMAX"))
+    if ov_path:
+        ctx.input_custody.append(_file_custody(ov_path, "Overrides"))
     ctx.status = overall_status(ctx)
     os.makedirs(out_dir, exist_ok=True)
     stamp = ctx.report_date.strftime("%d-%m-%Y")
@@ -6358,6 +6818,10 @@ def run_audit(
         ),
         "status": ctx.status,
         "outputs": [daily_path, audit_path],
+        "overrides_applied": len(ctx.override_stats.get("applied", [])),
+        "tool_pir_yes": sum(
+            1 for r in ctx.rules if ctx.verdicts[r.uid].tool_status == "YES"
+        ),
     }
     step("Writing the daily consolidated workbook")
     outs = [write_daily(ctx, daily_path)]
@@ -6553,6 +7017,7 @@ def run_selftest():
             report_date="08-11-2026",
             operator="selftest_user",
             record_job=False,
+            overrides_path="",
         )
         by = dict((r.name, ctx.verdicts[r.uid]) for r in ctx.rules)
         check("two workbooks written", len(outs) == 2)
@@ -6740,6 +7205,47 @@ def run_selftest():
         bk_el.save(os.path.join(extless_dir, "RFC255664422"))
         el_sheets, el_probs = load_rfc_folder(extless_dir)
         check("Extensionless RFC255664422 loads like .xlsx", "255664422" in el_sheets and len(el_sheets["255664422"].lines) == 1 and not el_probs)
+        # --- v2.6 reviewer overrides / confidence / explain ---
+        rb = dict((r.name, r) for r in ctx.rules)
+        ov_file = os.path.join(tmp, "overrides.json")
+        ovs = [
+            new_override(rb["RFC900000002-1"], "NO", OVERRIDE_REASONS[0],
+                         "Port 1521 approved in RFC900000099", "analyst1", "approved"),
+            new_override(rb["Test-no-rfc"], "NO", OVERRIDE_REASONS[-2], "", "analyst1"),
+            new_override(rb["RFC900000004"], "NO", OVERRIDE_REASONS[3], "",
+                         "analyst1", "approved", expires="01-01-2026"),
+        ]
+        stale = new_override(rb["RFC900000003"], "NO", OVERRIDE_REASONS[0], "", "analyst1", "approved")
+        stale["fingerprint"] = "0" * 24
+        ovs.append(stale)
+        save_overrides({"version": 1, "overrides": ovs}, ov_file)
+        ctx2, outs2 = run_audit([tmp], tmp, os.path.join(tmp, "out_ov"), load_config(),
+                                report_date="08-11-2026", operator="selftest_user",
+                                record_job=False, overrides_path=ov_file)
+        by2 = dict((r.name, ctx2.verdicts[r.uid]) for r in ctx2.rules)
+        check("override approved: tool YES kept, final NO",
+              by2["RFC900000002-1"].tool_status == "YES" and by2["RFC900000002-1"].status == "NO")
+        check("override proposed only: not applied (maker-checker)",
+              by2["Test-no-rfc"].status == "REVIEW" and len(ctx2.override_stats["pending"]) == 1)
+        check("override expired: not applied", by2["RFC900000004"].status == "REVIEW"
+              and len(ctx2.override_stats["expired"]) == 1)
+        check("override on changed rule: not applied (stale)",
+              by2["RFC900000003"].status == by2["RFC900000003"].tool_status
+              and by2["RFC900000003"].override is None
+              and any(r.name == "RFC900000003" for r, _ in ctx2.override_stats["stale"]))
+        check("fingerprint stable across runs",
+              rule_fingerprint(rb["RFC900000001"]) == ctx2.verdicts[[r for r in ctx2.rules if r.name == "RFC900000001"][0].uid].fingerprint)
+        check("confidence set on every rule", all(ctx2.verdicts[r.uid].confidence for r in ctx2.rules))
+        check("confidence High for exact match, Low for no RFC",
+              by2["RFC900000001"].confidence == "High" and by2["Test-no-rfc"].confidence == "Low")
+        ex = explain_verdict(rb["RFC900000002-1"], ctx.verdicts[rb["RFC900000002-1"].uid])
+        check("explain shows failing port step", any(s == "Ports inside RFC" and res == "FAIL" for s, res, _ in ex))
+        js = json.dumps(results_to_dict(ctx2), default=str)
+        check("results export is JSON", '"rules"' in js and '"evidence"' in js)
+        ab2 = XlsxBook([o for o in outs2 if "RFC_Audit" in o][0])
+        check("audit workbook has Reviewer Overrides sheet", "Reviewer Overrides" in ab2.names())
+        ab2.close()
+        check("overrides file in chain of custody", any(c.get("role") == "Overrides" for c in ctx2.input_custody))
         # --- v2.6 RFC reader robustness ---
         rr_dir = os.path.join(tmp, "rfc_robust")
         os.makedirs(rr_dir, exist_ok=True)
@@ -7787,11 +8293,13 @@ def run_gui():
 
     cached_results = []
     filtered_results = []
+    res_iid_uid = {}
 
     def populate_results(*_):
         for item in res_tree.get_children():
             res_tree.delete(item)
         filtered_results.clear()
+        res_iid_uid.clear()
         want = flt_status.get()
         field_name = flt_field.get()
         qtxt = flt_search.get().strip().lower()
@@ -7857,7 +8365,8 @@ def run_gui():
                     if idx_f is not None and qtxt not in str(row_data[idx_f]).lower():
                         continue
             filtered_results.append(row_data)
-            res_tree.insert("", "end", values=row_data, tags=(tag,))
+            _iid = res_tree.insert("", "end", values=row_data, tags=(tag,))
+            res_iid_uid[_iid] = r_flags.get("uid")
         flt_count_var.set("Showing %d of %d rule(s)" % (len(filtered_results), len(cached_results)))
 
     def clear_filters():
@@ -7909,7 +8418,145 @@ def run_gui():
         box.pack(fill="both", expand=True, padx=12, pady=12)
         for cname, cval in zip(res_cols, vals):
             box.insert("end", "%-14s: %s\n\n" % (cname, cval))
+        _c = last_ctx_holder["ctx"]
+        _uid = res_iid_uid.get(sel[0])
+        _r = next((x for x in _c.rules if x.uid == _uid), None) if _c else None
+        if _r is not None:
+            _v = _c.verdicts[_r.uid]
+            box.insert("end", "%-14s: %s\n%-14s  %s\n\n" % ("Confidence", _v.confidence, "", _v.confidence_why))
+            box.insert("end", "WHY (step by step)\n")
+            for _st, _res, _d in explain_verdict(_r, _v):
+                box.insert("end", "  [%-4s] %-36s %s\n" % (_res, _st, _d))
         box.configure(state="disabled")
+
+    def _ov_path():
+        c = last_ctx_holder["ctx"]
+        f = ((c.cfg if c else load_config()).get("review") or {}).get("overrides_file") or OVERRIDES_FILE
+        return f if os.path.isabs(f) else os.path.join(tool_dir(), f)
+
+    def _ov_user():
+        return (logged_in_user["name"] or var["operator"].get() or default_operator() or "").strip()
+
+    def override_rule_ui():
+        c = last_ctx_holder["ctx"]
+        sel = res_tree.selection()
+        if not c or not sel:
+            return
+        uid = res_iid_uid.get(sel[0])
+        rule = next((x for x in c.rules if x.uid == uid), None)
+        if rule is None:
+            return
+        v = c.verdicts[rule.uid]
+        user = _ov_user()
+        if not user:
+            messagebox.showwarning("Operator needed", "Set the Operator User ID first: overrides record who made them.")
+            return
+        need_appr = (c.cfg.get("review") or {}).get("require_approval", True)
+        pop = tk.Toplevel(root)
+        pop.title("Override verdict — %s" % rule.name)
+        pop.geometry("620x470")
+        pop.configure(bg="#F5F7FB")
+        pop.transient(root)
+        frm = tk.Frame(pop, bg="#F5F7FB", padx=18, pady=14)
+        frm.pack(fill="both", expand=True)
+        tk.Label(frm, text="Rule %s  (%s, row %s)" % (rule.name, rule.tab, rule.tab_row),
+                 bg="#F5F7FB", fg="#0B1930", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        tk.Label(frm, text="Tool verdict: PIR ISSUE = %s   |   Confidence: %s" % (v.tool_status or v.status, v.confidence),
+                 bg="#F5F7FB", fg="#334155").pack(anchor="w", pady=(2, 8))
+        tk.Label(frm, text=v.detail[:400], wraplength=570, justify="left",
+                 bg="#FFFFFF", fg="#334155", padx=8, pady=6).pack(fill="x")
+        fst = tk.StringVar(value="NO" if v.status in ("YES", "REVIEW") else "YES")
+        frs = tk.StringVar(value=OVERRIDE_REASONS[0])
+        fexp = tk.StringVar(value="")
+        row1 = tk.Frame(frm, bg="#F5F7FB"); row1.pack(fill="x", pady=(12, 4))
+        tk.Label(row1, text="Final PIR ISSUE", bg="#F5F7FB", width=16, anchor="w").pack(side="left")
+        ttk.Combobox(row1, textvariable=fst, values=FINAL_STATUSES, state="readonly", width=10).pack(side="left")
+        row2 = tk.Frame(frm, bg="#F5F7FB"); row2.pack(fill="x", pady=4)
+        tk.Label(row2, text="Reason", bg="#F5F7FB", width=16, anchor="w").pack(side="left")
+        ttk.Combobox(row2, textvariable=frs, values=OVERRIDE_REASONS, state="readonly", width=46).pack(side="left")
+        tk.Label(frm, text="Comment / evidence (required)", bg="#F5F7FB").pack(anchor="w", pady=(8, 2))
+        cbox = tk.Text(frm, height=5, wrap="word", font=("Segoe UI", 9))
+        cbox.pack(fill="x")
+        row3 = tk.Frame(frm, bg="#F5F7FB"); row3.pack(fill="x", pady=6)
+        tk.Label(row3, text="Expires (DD-MM-YYYY, optional)", bg="#F5F7FB").pack(side="left")
+        tk.Entry(row3, textvariable=fexp, width=14).pack(side="left", padx=6)
+        tk.Label(frm, text=("Saved as PROPOSED. A different user must approve it before it is used (maker-checker)."
+                            if need_appr else "Saved as APPROVED (review.require_approval is off)."),
+                 bg="#F5F7FB", fg="#B45309", wraplength=570, justify="left").pack(anchor="w", pady=4)
+
+        def save():
+            com = cbox.get("1.0", "end").strip()
+            if not com:
+                messagebox.showwarning("Comment needed", "Write why the tool verdict is wrong (evidence).", parent=pop)
+                return
+            try:
+                path = _ov_path()
+                data = load_overrides(path)
+                data["overrides"].append(new_override(
+                    rule, fst.get(), frs.get(), com, user,
+                    "proposed" if need_appr else "approved", fexp.get()))
+                save_overrides(data, path)
+            except (AuditError, OSError) as e:
+                messagebox.showerror("Override not saved", str(e), parent=pop)
+                return
+            pop.destroy()
+            messagebox.showinfo("Override saved", "Saved to %s.\nRun the audit again to produce the final report with this override." % path)
+
+        bt = tk.Frame(frm, bg="#F5F7FB"); bt.pack(fill="x", pady=(10, 0))
+        tk.Button(bt, text="Save override", command=save, bg="#1D4ED8", fg="#FFFFFF", relief="flat", padx=14, pady=4).pack(side="right")
+        tk.Button(bt, text="Cancel", command=pop.destroy, relief="flat", padx=14, pady=4).pack(side="right", padx=8)
+
+    def review_overrides_ui():
+        path = _ov_path()
+        try:
+            data = load_overrides(path)
+        except AuditError as e:
+            messagebox.showerror("Overrides", str(e))
+            return
+        user = _ov_user()
+        pop = tk.Toplevel(root)
+        pop.title("Reviewer overrides — %s" % path)
+        pop.geometry("980x420")
+        cols = ("State", "Tab", "Rule", "Final", "Reason", "Comment", "By", "At", "Approved by")
+        tv = ttk.Treeview(pop, columns=cols, show="headings")
+        for cn, w in zip(cols, (80, 80, 150, 60, 170, 220, 80, 120, 90)):
+            tv.heading(cn, text=cn); tv.column(cn, width=w, anchor="w")
+        tv.pack(fill="both", expand=True, padx=10, pady=10)
+
+        def fill():
+            for it in tv.get_children():
+                tv.delete(it)
+            for ov in data["overrides"]:
+                tv.insert("", "end", iid=ov["id"], values=(
+                    ov.get("state"), ov.get("tab"), ov.get("rule"), ov.get("final_status"),
+                    ov.get("reason"), ov.get("comment"), ov.get("by"), ov.get("at"), ov.get("approved_by")))
+
+        def act(new_state):
+            sel = tv.selection()
+            if not sel:
+                return
+            ov = next(o for o in data["overrides"] if o["id"] == sel[0])
+            if new_state == "approved":
+                if ov.get("state") != "proposed":
+                    messagebox.showwarning("Approve", "Only PROPOSED overrides can be approved.", parent=pop)
+                    return
+                if not user or user.lower() == (ov.get("by") or "").lower():
+                    messagebox.showwarning("Maker-checker", "The person who proposed an override cannot approve it.", parent=pop)
+                    return
+                ov["approved_by"] = user
+                ov["approved_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                ov["closed_by"] = user
+            ov["state"] = new_state
+            save_overrides(data, path)
+            fill()
+
+        bt = tk.Frame(pop); bt.pack(fill="x", padx=10, pady=(0, 10))
+        tk.Label(bt, text="Signed in as: %s" % (user or "(not set)")).pack(side="left")
+        tk.Button(bt, text="Revoke", command=lambda: act("revoked")).pack(side="right", padx=4)
+        tk.Button(bt, text="Reject", command=lambda: act("rejected")).pack(side="right", padx=4)
+        tk.Button(bt, text="Approve", command=lambda: act("approved")).pack(side="right", padx=4)
+        fill()
 
     ctx_menu = tk.Menu(root, tearoff=0)
 
@@ -7932,6 +8579,8 @@ def run_gui():
         root.clipboard_append(txt)
 
     ctx_menu.add_command(label="Inspect Rule Detail", command=inspect_rule_popup)
+    ctx_menu.add_command(label="Override Verdict (False Positive)...", command=lambda: override_rule_ui())
+    ctx_menu.add_command(label="Review / Approve Overrides...", command=lambda: review_overrides_ui())
     ctx_menu.add_separator()
     ctx_menu.add_command(label="Copy Rule Summary", command=lambda: _copy_sel("summary"))
     ctx_menu.add_command(label="Copy RFC Number", command=lambda: _copy_sel("rfc"))
@@ -8868,7 +9517,7 @@ def run_gui():
                                 ),
                                 v.status,
                                 r.time,
-                                {"disabled": (r.enabled is False), "no_desc": (not r.description.strip()), "deny": r.is_deny, "change_type": r.change_type.lower()},
+                                {"disabled": (r.enabled is False), "no_desc": (not r.description.strip()), "deny": r.is_deny, "change_type": r.change_type.lower(), "uid": r.uid},
                             )
                         )
                     avail_dates = sorted(set(x[2].strftime("%Y-%m-%d") for x in cached_results if x[2] is not None))
@@ -8975,6 +9624,26 @@ def main(argv=None):
             " file)"
         ),
     )
+    r.add_argument(
+        "--overrides",
+        metavar="FILE",
+        help="reviewer overrides JSON (default: review.overrides_file if present)",
+    )
+    r.add_argument(
+        "--no-overrides",
+        action="store_true",
+        help="ignore reviewer overrides (pure tool verdicts)",
+    )
+    r.add_argument(
+        "--json",
+        metavar="FILE",
+        help="also write every verdict, explanation and evidence as JSON",
+    )
+    r.add_argument(
+        "--fail-on-issues",
+        action="store_true",
+        help="exit code 3 when any final PIR ISSUE is YES (for schedulers/CI)",
+    )
     mc = sub.add_parser(
         "consolidate",
         help="merge multiple daily consolidated workbooks into one master workbook",
@@ -9009,7 +9678,12 @@ def main(argv=None):
                 args.date,
                 smax_path=args.smax,
                 operator=args.operator,
+                overrides_path="" if args.no_overrides else args.overrides,
             )
+            if args.json:
+                with open(args.json, "w", encoding="utf-8") as jf:
+                    json.dump(results_to_dict(ctx), jf, indent=1, default=str)
+                outs.append(args.json)
             s = collections.Counter(
                 ctx.verdicts[x.uid].status for x in ctx.rules
             )
@@ -9027,8 +9701,18 @@ def main(argv=None):
             print("Overall status: %s" % ctx.status)
             for sev, m in ctx.warnings:
                 print(" [%s] %s" % (sev, m))
+            ost = getattr(ctx, "override_stats", {}) or {}
+            if any(ost.get(k) for k in ("applied", "pending", "stale")):
+                print(
+                    "Overrides     : %d applied | %d pending approval |"
+                    " %d not applied (rule changed)"
+                    % (len(ost.get("applied", [])), len(ost.get("pending", [])),
+                       len(ost.get("stale", [])))
+                )
             for o in outs:
                 print("Written: %s" % o)
+            if args.fail_on_issues and s["YES"]:
+                return 3
             return 0
         if cmd == "consolidate":
             stats, outs = merge_consolidated_folder(args.in_dir, args.out, fmt=args.format)

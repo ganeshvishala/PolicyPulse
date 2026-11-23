@@ -1,0 +1,9 @@
+fwaudit.log
+fwaudit_jobs.json
+fwaudit_auth.json
+fwaudit_overrides.json
+fwaudit_config.json
+fwaudit_web_data/
+__pycache__/
+*.pyc
+output/
