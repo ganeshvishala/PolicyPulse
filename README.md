@@ -12,6 +12,15 @@ PolicyPulse checks every firewall rule change in the AlgoSec *Changes Summary* r
 | **Maker-checker approvals (dark theme)** | **Dashboard** |
 | ![](docs/screenshots/06_overrides_pending_dark.png) | ![](docs/screenshots/10_dashboard.png) |
 
+## Download (always the latest tested build)
+
+Every push to GitHub runs the tests on Windows and Linux (Python 3.8 and 3.12). If they pass, it builds two downloads and puts them on the **[latest release page](../../releases/tag/latest)**:
+
+* **PolicyPulse-&lt;version&gt;-&lt;commit&gt;.zip**: the .py files plus double-click start files `1_Desktop_window.bat`, `2_Web_version.bat` and `3_Selftest.bat`. Needs Python 3.8+.
+* **PolicyPulse-windows-exe-&lt;commit&gt;.zip**: `fwaudit.exe` and `PolicyPulse-web.exe`. No Python needed.
+
+`VERSION.txt` inside the ZIP shows the commit, the build date and the SHA-256 of every file, so a tester always knows which build they have. Each run's files also stay under **Actions → the run → Artifacts** for 30 days. To build the ZIP yourself, run `python tools/make_package.py`.
+
 ## Quick start
 
 ```bash

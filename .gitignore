@@ -7,3 +7,4 @@ fwaudit_web_data/
 __pycache__/
 *.pyc
 output/
+dist/
