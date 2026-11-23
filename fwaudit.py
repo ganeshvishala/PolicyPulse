@@ -3449,21 +3449,25 @@ def save_overrides(data, path):
     return data
 
 
-def new_override(rule, final_status, reason, comment, by, state="proposed",
-                 expires=""):
+def override_record(tab, rule_name, change_type, fingerprint, final_status,
+                    reason, comment, by, state="proposed", expires=""):
     if final_status not in FINAL_STATUSES:
         raise AuditError("final status must be one of %s" % (FINAL_STATUSES,))
     if not (reason or "").strip():
         raise AuditError("An override needs a reason.")
+    if state not in OVERRIDE_STATES:
+        raise AuditError("override state must be one of %s" % (OVERRIDE_STATES,))
+    if (expires or "").strip() and _parse_date(expires.strip()) is None:
+        raise AuditError("Expiry date %r is not a date (use DD-MM-YYYY)" % expires)
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return {
         "id": hashlib.sha256(
-            ("%s|%s|%s" % (rule_fingerprint(rule), now, os.urandom(8).hex())).encode()
+            ("%s|%s|%s" % (fingerprint, now, os.urandom(8).hex())).encode()
         ).hexdigest()[:12],
-        "tab": rule.tab,
-        "rule": rule.name,
-        "change_type": rule.change_type,
-        "fingerprint": rule_fingerprint(rule),
+        "tab": tab,
+        "rule": rule_name,
+        "change_type": change_type,
+        "fingerprint": fingerprint,
         "final_status": final_status,
         "reason": reason.strip(),
         "comment": (comment or "").strip(),
@@ -3474,6 +3478,13 @@ def new_override(rule, final_status, reason, comment, by, state="proposed",
         "approved_at": now if state == "approved" else "",
         "expires": (expires or "").strip(),
     }
+
+
+def new_override(rule, final_status, reason, comment, by, state="proposed",
+                 expires=""):
+    return override_record(rule.tab, rule.name, rule.change_type,
+                           rule_fingerprint(rule), final_status, reason,
+                           comment, by, state, expires)
 
 
 def _ov_expired(ov, ref):
@@ -3610,12 +3621,13 @@ def explain_verdict(rule, v):
                 ("not read: " + ", ".join(rule.svc_unresolved[:6])) if rule.svc_unresolved
                 else (rule.ports.fmt() or ("ANY" if rule.any_service else "-"))))
     if v.rfc_used:
-        out.append(("Source inside RFC", bad if v.ex_src else ok,
-                    ("not approved: " + v.ex_src.fmt()) if v.ex_src else rule.src.summary(4)))
-        out.append(("Destination inside RFC", bad if v.ex_dst else ok,
-                    ("not approved: " + v.ex_dst.fmt()) if v.ex_dst else rule.dst.summary(4)))
-        out.append(("Ports inside RFC", bad if v.ex_ports else ok,
-                    ("not approved: " + v.ex_ports.fmt()) if v.ex_ports else rule.ports.fmt()))
+        pf = rule.ports.fmt() or "these ports"
+        out.append(("Ports requested in RFC", bad if v.ex_ports else ok,
+                    ("not in any RFC line: " + v.ex_ports.fmt()) if v.ex_ports else pf))
+        out.append(("Source approved for these ports", bad if v.ex_src else ok,
+                    ("%s not approved with %s" % (v.ex_src.fmt(), pf)) if v.ex_src else rule.src.summary(4)))
+        out.append(("Destination approved for these ports", bad if v.ex_dst else ok,
+                    ("%s not approved with %s" % (v.ex_dst.fmt(), pf)) if v.ex_dst else rule.dst.summary(4)))
         if v.unc_total:
             out.append(("Same RFC line approves src+dst+port", bad if v.unc else ok,
                         v.merged_note or "every flow approved by one line"))
@@ -7239,7 +7251,7 @@ def run_selftest():
         check("confidence High for exact match, Low for no RFC",
               by2["RFC900000001"].confidence == "High" and by2["Test-no-rfc"].confidence == "Low")
         ex = explain_verdict(rb["RFC900000002-1"], ctx.verdicts[rb["RFC900000002-1"].uid])
-        check("explain shows failing port step", any(s == "Ports inside RFC" and res == "FAIL" for s, res, _ in ex))
+        check("explain shows failing port step", any(s == "Ports requested in RFC" and res == "FAIL" for s, res, _ in ex))
         js = json.dumps(results_to_dict(ctx2), default=str)
         check("results export is JSON", '"rules"' in js and '"evidence"' in js)
         ab2 = XlsxBook([o for o in outs2 if "RFC_Audit" in o][0])
